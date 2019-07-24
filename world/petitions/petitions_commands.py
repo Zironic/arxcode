@@ -13,6 +13,7 @@ from world.petitions.models import BrokeredSale, Petition, PetitionSettings
 from world.dominion.models import Organization
 from datetime import date
 
+
 class CmdPetition(RewardRPToolUseMixin, ArxCommand):
     """
     Creates a petition to an org or the market as a whole
@@ -56,7 +57,7 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
     admin_switches = org_admin_switches + ("close", "reopen")
     creation_switches = ("create", "topic", "desc", "org", "submit", "cancel")
     owner_switches = ("editdesc", "edittopic")
-    ignore_switches= ("ignore")
+    ignore_switches = ("ignore")
 
     class PetitionCommandError(CommandError):
         """Exception class for Petition Command"""
@@ -64,10 +65,12 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
 
     def func(self):
         """Executes petition command"""
-        settings,created=self.caller.dompc.petition_settings.get_or_create()
+        settings, created = self.caller.dompc.petition_settings.get_or_create()
         self.mark_command_used()
         try:
-            if self.check_switches(self.list_switches) or (not self.switches and not self.args.isdigit()):
+            if self.check_switches(
+                    self.list_switches) or (
+                    not self.switches and not self.args.isdigit()):
                 return self.list_petitions()
             elif not self.switches and self.args.isdigit():
                 return self.display_petition()
@@ -85,13 +88,14 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
         except (self.PetitionCommandError, PetitionError) as err:
             self.msg(err)
 
-            
-    def color_coder(self,petition,dompc):
-        if petition.waiting and (date.today()-petition.date_created).days>7:
+    def color_coder(self, petition, dompc):
+        if petition.waiting and (
+                date.today() -
+                petition.date_created).days > 7:
             return "|550"
         elif petition.waiting:
             return "|500"
-        elif (date_updated-petition.date_created).days>7:
+        elif (date_updated - petition.date_created).days > 7:
             return "|530"
         elif petition.petitionparticipation_set.filter(dompc=dompc).unread_posts:
             return "|253"
@@ -100,33 +104,51 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
 
     def list_petitions(self):
         """Lists petitions for org/player"""
-        if ("search" in self.switches and self.rhs) or (self.args and "search" not in self.switches):
+        if ("search" in self.switches and self.rhs) or (
+                self.args and "search" not in self.switches):
             if self.rhs:
                 org = self.get_org_from_args(self.rhs)
             else:
                 org = self.get_org_from_args(self.lhs)
             if not org.access(self.caller, "view_petition"):
-                raise self.PetitionCommandError("You do not have access to view petitions for %s." % org)
+                raise self.PetitionCommandError(
+                    "You do not have access to view petitions for %s." % org)
             qs = org.petitions.all()
         else:
-            
-            orgs = Organization.objects.filter(members__deguilded=False).filter(members__player=self.caller.dompc)
-            orgs = [org for org in orgs if org.access(self.caller, "view_petition")]
+
+            orgs = Organization.objects.filter(
+                members__deguilded=False).filter(
+                members__player=self.caller.dompc)
+            orgs = [
+                org for org in orgs if org.access(
+                    self.caller,
+                    "view_petition")]
             query = Q(organization__in=orgs)
             if "onlyorgs" not in self.switches:
-                query = query | Q(organization__isnull=True) | Q(dompcs=self.caller.dompc)
+                query = query | Q(
+                    organization__isnull=True) | Q(
+                    dompcs=self.caller.dompc)
             qs = Petition.objects.filter(query).order_by('-date_updated')
         if "old" in self.switches:
             qs = qs.filter(closed=True)
         else:
             qs = qs.filter(closed=False)
         if "search" in self.switches:
-            qs = qs.filter(Q(topic__icontains=self.lhs) | Q(description__icontains=self.lhs))
-        signed_up = list(self.caller.dompc.petitions.filter(petitionparticipation__signed_up=True))
-        table = PrettyTable(["Updated","ID", "Owner", "Topic", "Org", "On"])
+            qs = qs.filter(Q(topic__icontains=self.lhs) |
+                           Q(description__icontains=self.lhs))
+        signed_up = list(
+            self.caller.dompc.petitions.filter(
+                petitionparticipation__signed_up=True))
+        table = PrettyTable(["Updated", "ID", "Owner", "Topic", "Org", "On"])
         for ob in qs.distinct():
             signed_str = "X" if ob in signed_up else ""
-            table.add_row([self.color_coder(ob,self.caller.dompc)+ob.date_updated.strftime("%m/%d/%y"),ob.id, str(ob.owner), ob.topic[:30], str(ob.organization), signed_str])
+            table.add_row([self.color_coder(ob,
+                                            self.caller.dompc) + ob.date_updated.strftime("%m/%d/%y"),
+                           ob.id,
+                           str(ob.owner),
+                           ob.topic[:30],
+                           str(ob.organization),
+                           signed_str])
         self.msg(str(table))
         self.display_petition_form()
 
@@ -163,19 +185,23 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
         petition = self.get_petition()
         if self.check_switches(self.org_admin_switches):
             from django.core.exceptions import ObjectDoesNotExist
-            if not petition.check_org_access(self.caller.player_ob, "admin_petition"):
-                raise self.PetitionCommandError("You don't have admin_petition access to that petition.")
+            if not petition.check_org_access(
+                    self.caller.player_ob, "admin_petition"):
+                raise self.PetitionCommandError(
+                    "You don't have admin_petition access to that petition.")
             player = self.caller.player.search(self.rhs)
             if not player:
                 return
             target = player.Dominion
             verb = "assign" if "assign" in self.switches else "remove"
             try:
-                member = target.memberships.get(organization=petition.organization)
+                member = target.memberships.get(
+                    organization=petition.organization)
                 if member.deguilded and verb == "assign":
                     raise ObjectDoesNotExist
             except ObjectDoesNotExist:
-                raise self.PetitionCommandError("You can only %s members of your organization." % verb)
+                raise self.PetitionCommandError(
+                    "You can only %s members of your organization." % verb)
             first_person = target == self.caller.dompc
             if "assign" in self.switches:
                 petition.signup(target, first_person=first_person)
@@ -185,7 +211,8 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
                 self.msg("You have removed %s from the petition." % target)
             petition.mark_posts_unread(self.caller.dompc)
             return
-        if self.caller.dompc != petition.owner and not petition.check_org_access(self.caller.player, "admin_petition"):
+        if self.caller.dompc != petition.owner and not petition.check_org_access(
+                self.caller.player, "admin_petition"):
             raise self.PetitionCommandError("You are not allowed to do that.")
         if "close" in self.switches:
             if petition.closed:
@@ -204,7 +231,8 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
         form = self.caller.db.petition_form
         if "submit" in self.switches:
             if not form:
-                raise self.PetitionCommandError("You must create a form first.")
+                raise self.PetitionCommandError(
+                    "You must create a form first.")
             form = PetitionForm(form, owner=self.caller.dompc)
             if not form.is_valid():
                 raise self.PetitionCommandError(form.display_errors())
@@ -212,21 +240,38 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
             self.msg("Successfully created petition %s." % petition.id)
             self.caller.attributes.remove("petition_form")
             if petition.organization is not None:
-                targets=PetitionSettings.objects.all().exclude(ignored_organizations=petition.organization).exclude(inform=False)
+                targets = PetitionSettings.objects.all().exclude(
+                    ignored_organizations=petition.organization).exclude(
+                    inform=False)
                 for target in targets:
-                    target.owner.player.msg("{wA new petition was posted by %s to %s.{n" % (petition.owner,petition.organization))
-                    target.owner.player.inform("{wA new petition was posted by %s to %s.{n|/|/%s" % (petition.owner,petition.organization,petition.display()),category="Petition", append=True)
+                    target.owner.player.msg(
+                        "{wA new petition was posted by %s to %s.{n" %
+                        (petition.owner, petition.organization))
+                    target.owner.player.inform(
+                        "{wA new petition was posted by %s to %s.{n|/|/%s" %
+                        (petition.owner,
+                         petition.organization,
+                         petition.display()),
+                        category="Petition",
+                        append=True)
             else:
-                targets=PetitionSettings.objects.all().exclude(inform=False).exclude(ignore_general=True)
+                targets = PetitionSettings.objects.all().exclude(
+                    inform=False).exclude(ignore_general=True)
                 for target in targets:
-                    target.owner.player.msg("{wA new petition was posted by %s{n" % (petition.owner))
-                    target.owner.player.inform("{wA new petition was posted by %s{n|/|/%s" % (petition.owner,petition.display()),category="Petition", append=True)
+                    target.owner.player.msg(
+                        "{wA new petition was posted by %s{n" %
+                        (petition.owner))
+                    target.owner.player.inform(
+                        "{wA new petition was posted by %s{n|/|/%s" %
+                        (petition.owner, petition.display()), category="Petition", append=True)
         else:
             if "create" in self.switches:
                 if form:
                     self.display_petition_form()
-                    raise self.PetitionCommandError("You already are creating a petition.")
-                self.caller.db.petition_form = {'topic': self.lhs or None, 'description': self.rhs}
+                    raise self.PetitionCommandError(
+                        "You already are creating a petition.")
+                self.caller.db.petition_form = {
+                    'topic': self.lhs or None, 'description': self.rhs}
             elif form is None:
                 raise self.PetitionCommandError("You must use /create first.")
             elif "topic" in self.switches:
@@ -239,9 +284,11 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
                     form['organization'] = None
                 else:
                     try:
-                        form['organization'] = Organization.objects.get(name__iexact=self.args).id
+                        form['organization'] = Organization.objects.get(
+                            name__iexact=self.args).id
                     except (Organization.DoesNotExist, ValueError, TypeError):
-                        raise self.PetitionCommandError("No organization by that name.")
+                        raise self.PetitionCommandError(
+                            "No organization by that name.")
             elif "cancel" in self.switches:
                 self.caller.attributes.remove("petition_form")
                 self.msg("Petition form cancelled.")
@@ -251,9 +298,11 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
         """Owner edit commands"""
         petition = self.get_petition()
         if self.caller.dompc != petition.owner:
-            raise self.PetitionCommandError("You must be the owner of the petition to do that.")
+            raise self.PetitionCommandError(
+                "You must be the owner of the petition to do that.")
         if not self.rhs:
-            raise self.PetitionCommandError("You must enter text for the description or topic.")
+            raise self.PetitionCommandError(
+                "You must enter text for the description or topic.")
         if "editdesc" in self.switches:
             petition.description = self.rhs
             self.msg("New description: %s" % self.rhs)
@@ -266,25 +315,29 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
         petition.mark_posts_unread(self.caller.dompc)
 
     def do_ignore_switches(self):
-        settings,created=self.caller.dompc.petition_settings.get_or_create()
-        if self.lhs=="all":
-            settings.inform^=True
-            self.msg("You are now %s informed of new petitions") %("" if settings.inform == True else "not")
-        elif self.lhs=="general":
-            settings.ignore_general^=True
-            self.msg("You are now %s informed of new general petitions") %("" if settings.inform == True else "not")
+        settings, created = self.caller.dompc.petition_settings.get_or_create()
+        if self.lhs == "all":
+            settings.inform ^= True
+            self.msg("You are now %s informed of new petitions") % (
+                "" if settings.inform else "not")
+        elif self.lhs == "general":
+            settings.ignore_general ^= True
+            self.msg("You are now %s informed of new general petitions") % (
+                "" if settings.inform else "not")
         else:
-            org=self.get_org_from_args(self.lhs)
+            org = self.get_org_from_args(self.lhs)
             settings.ignored_organizations.add(org)
-            self.msg("You are now %s informed of new "+self.lhs+" petitions") %("" if settings.inform == True else "not")
-        
+            self.msg("You are now %s informed of new " + self.lhs +
+                     " petitions") % ("" if settings.inform else "not")
+
     def get_org_from_args(self, args):
         """Gets an organization"""
         from world.dominion.models import Organization
         try:
             return Organization.objects.get(name__iexact=args)
         except Organization.DoesNotExist:
-            raise self.PetitionCommandError("No organization by the name %s." % args)
+            raise self.PetitionCommandError(
+                "No organization by the name %s." % args)
 
     def get_petition(self):
         """Gets a petition"""
@@ -295,7 +348,8 @@ class CmdPetition(RewardRPToolUseMixin, ArxCommand):
             raise self.PetitionCommandError("No petition by that ID number.")
         else:
             if not petition.check_view_access(self.caller.dompc):
-                raise self.PetitionCommandError("You are not allowed to access that petition.")
+                raise self.PetitionCommandError(
+                    "You are not allowed to access that petition.")
             return petition
 
     def display_petition_form(self):
@@ -373,7 +427,8 @@ class CmdBroker(ArxCommand):
     def broker_display(self):
         """Displays items for sale on the broker"""
 
-        qs = BrokeredSale.objects.filter(amount__gte=1, broker_type=BrokeredSale.SALE)
+        qs = BrokeredSale.objects.filter(
+            amount__gte=1, broker_type=BrokeredSale.SALE)
         if "search" in self.switches and self.args:
 
             sale_type = self.get_sale_type()
@@ -381,10 +436,15 @@ class CmdBroker(ArxCommand):
                              BrokeredSale.SOCIAL, BrokeredSale.MILITARY):
                 query = Q(sale_type=sale_type)
             else:
-                if set(self.args.lower().split()) & {"materials", "mats", "crafting"}:
+                if set(self.args.lower().split()) & {
+                        "materials", "mats", "crafting"}:
                     query = Q(sale_type=BrokeredSale.CRAFTING_MATERIALS)
                 elif "resource" in self.args.lower():
-                    query = Q(sale_type__in=(BrokeredSale.ECONOMIC, BrokeredSale.SOCIAL, BrokeredSale.MILITARY))
+                    query = Q(
+                        sale_type__in=(
+                            BrokeredSale.ECONOMIC,
+                            BrokeredSale.SOCIAL,
+                            BrokeredSale.MILITARY))
                 else:
                     query = (Q(crafting_material_type__name__icontains=self.args) |
                              Q(owner__player__username__iexact=self.args))
@@ -392,10 +452,12 @@ class CmdBroker(ArxCommand):
 
         table = PrettyTable(["ID", "Seller", "Type", "Price", "Amount"])
         for deal in qs:
-            table.add_row([deal.id, str(deal.owner), str(deal.material_name), deal.price, deal.amount])
+            table.add_row([deal.id, str(deal.owner), str(
+                deal.material_name), deal.price, deal.amount])
         self.msg(str(table))
         """Displays items wanted on the broker"""
-        qs = BrokeredSale.objects.filter(amount__gte=1, broker_type=BrokeredSale.PURCHASE)
+        qs = BrokeredSale.objects.filter(
+            amount__gte=1, broker_type=BrokeredSale.PURCHASE)
         if "search" in self.switches and self.args:
 
             sale_type = self.get_sale_type()
@@ -403,10 +465,15 @@ class CmdBroker(ArxCommand):
                              BrokeredSale.SOCIAL, BrokeredSale.MILITARY):
                 query = Q(sale_type=sale_type)
             else:
-                if set(self.args.lower().split()) & {"materials", "mats", "crafting"}:
+                if set(self.args.lower().split()) & {
+                        "materials", "mats", "crafting"}:
                     query = Q(sale_type=BrokeredSale.CRAFTING_MATERIALS)
                 elif "resource" in self.args.lower():
-                    query = Q(sale_type__in=(BrokeredSale.ECONOMIC, BrokeredSale.SOCIAL, BrokeredSale.MILITARY))
+                    query = Q(
+                        sale_type__in=(
+                            BrokeredSale.ECONOMIC,
+                            BrokeredSale.SOCIAL,
+                            BrokeredSale.MILITARY))
                 else:
                     query = (Q(crafting_material_type__name__icontains=self.args) |
                              Q(owner__player__username__iexact=self.args))
@@ -414,7 +481,8 @@ class CmdBroker(ArxCommand):
 
         table = PrettyTable(["ID", "Buyer", "Type", "Price", "Amount"])
         for deal in qs:
-            table.add_row([deal.id, str(deal.owner), str(deal.material_name), deal.price, deal.amount])
+            table.add_row([deal.id, str(deal.owner), str(
+                deal.material_name), deal.price, deal.amount])
         self.msg(str(table))
 
     def display_sale_detail(self):
@@ -426,31 +494,43 @@ class CmdBroker(ArxCommand):
         """Buys some amount from a sale"""
         sale_type = self.get_sale_type()
         if len(self.rhslist) != 2:
-            raise self.BrokerError("You must ask for both an amount and a price.")
+            raise self.BrokerError(
+                "You must ask for both an amount and a price.")
         amount = self.get_amount(self.rhslist[0])
         price = self.get_amount(self.rhslist[1], "price")
         character = self.caller.player.char_ob
-        cost = price*amount
+        cost = price * amount
         if cost > character.currency:
-            raise PayError("You cannot afford to pay %s when you only have %s silver." % (cost, character.currency))
+            raise PayError(
+                "You cannot afford to pay %s when you only have %s silver." %
+                (cost, character.currency))
         material_type = None
         if sale_type == BrokeredSale.ACTION_POINTS:
             from evennia.server.models import ServerConfig
             disabled = ServerConfig.objects.conf(key="DISABLE_AP_TRANSFER")
             if disabled:
-                raise self.BrokerError("Action Point sales are temporarily disabled.")
+                raise self.BrokerError(
+                    "Action Point sales are temporarily disabled.")
         elif sale_type == BrokeredSale.CRAFTING_MATERIALS:
             from world.dominion.models import CraftingMaterialType
             try:
-                material_type = CraftingMaterialType.objects.get(name__iexact=self.lhs)
+                material_type = CraftingMaterialType.objects.get(
+                    name__iexact=self.lhs)
             except CraftingMaterialType.DoesNotExist:
-                raise self.BrokerError("Could not find a material by the name '%s'." % self.lhs)
+                raise self.BrokerError(
+                    "Could not find a material by the name '%s'." %
+                    self.lhs)
             if "nosell" in (material_type.acquisition_modifiers or ""):
-                raise self.BrokerError("You can't put contraband on the broker! Seriously, how are you still alive?")
+                raise self.BrokerError(
+                    "You can't put contraband on the broker! Seriously, how are you still alive?")
         character.pay_money(cost)
         dompc = self.caller.player_ob.Dominion
-        sell_orders = BrokeredSale.objects.filter(broker_type=BrokeredSale.SALE, price__lte=price, sale_type=sale_type,
-                                                  amount__gt=0, crafting_material_type=material_type).order_by('price')
+        sell_orders = BrokeredSale.objects.filter(
+            broker_type=BrokeredSale.SALE,
+            price__lte=price,
+            sale_type=sale_type,
+            amount__gt=0,
+            crafting_material_type=material_type).order_by('price')
         purchase, created = dompc.brokered_sales.get_or_create(price=price, sale_type=sale_type,
                                                                crafting_material_type=material_type,
                                                                broker_type=BrokeredSale.PURCHASE)
@@ -468,11 +548,12 @@ class CmdBroker(ArxCommand):
                     else:
                         buyamount = amount
                     order.make_purchase(dompc, buyamount)
-                    self.msg("You have bought %s %s from %s for %s silver." % (buyamount, order.material_name, seller,
-                                                                               order.price*buyamount))
+                    self.msg(
+                        "You have bought %s %s from %s for %s silver." %
+                        (buyamount, order.material_name, seller, order.price * buyamount))
                     amount -= buyamount
                     if order.price < price:
-                        character.pay_money(-(price-order.price)*buyamount)
+                        character.pay_money(-(price - order.price) * buyamount)
 
         purchase.amount = amount
         purchase.save()
@@ -480,12 +561,14 @@ class CmdBroker(ArxCommand):
             purchase.delete()
             created = None
         if created:
-            self.msg("You have placed an order for %s %s for %s silver each and %s total." %
-                     (amount, purchase.material_name, price, purchase.amount*price))
+            self.msg(
+                "You have placed an order for %s %s for %s silver each and %s total." %
+                (amount, purchase.material_name, price, purchase.amount * price))
         else:
             if amount > 0:
-                self.msg("Added %s to the existing order of %s for %s silver each and %s total." %
-                         (original, purchase.material_name, price, purchase.amount*price))
+                self.msg(
+                    "Added %s to the existing order of %s for %s silver each and %s total." %
+                    (original, purchase.material_name, price, purchase.amount * price))
 
     def get_amount(self, args, noun="amount"):
         """Gets a positive number to use for a transaction, or raises a BrokerError"""
@@ -494,14 +577,17 @@ class CmdBroker(ArxCommand):
             if amount <= 0:
                 raise ValueError
         except (TypeError, ValueError):
-            raise self.BrokerError("You must provide a positive number as the %s." % noun)
+            raise self.BrokerError(
+                "You must provide a positive number as the %s." %
+                noun)
         return amount
 
     def make_sale_offer(self):
         """Create a new sale"""
         sale_type = self.get_sale_type()
         if len(self.rhslist) != 2:
-            raise self.BrokerError("You must ask for both an amount and a price.")
+            raise self.BrokerError(
+                "You must ask for both an amount and a price.")
         amount = self.get_amount(self.rhslist[0])
         price = self.get_amount(self.rhslist[1], "price")
         material_type = None
@@ -510,26 +596,37 @@ class CmdBroker(ArxCommand):
             from evennia.server.models import ServerConfig
             disabled = ServerConfig.objects.conf(key="DISABLE_AP_TRANSFER")
             if disabled:
-                raise self.BrokerError("Action Point sales are temporarily disabled.")
+                raise self.BrokerError(
+                    "Action Point sales are temporarily disabled.")
             if amount % 3:
-                raise self.BrokerError("Action Points must be a factor of 3, since it's divided by 3 when put on sale.")
+                raise self.BrokerError(
+                    "Action Points must be a factor of 3, since it's divided by 3 when put on sale.")
             if not self.caller.player_ob.pay_action_points(amount):
-                raise self.BrokerError("You do not have enough action points to put on sale.")
+                raise self.BrokerError(
+                    "You do not have enough action points to put on sale.")
             amount /= 3
         elif sale_type in resource_types:
             resource = resource_types[sale_type]
             if not self.caller.player_ob.pay_resources(resource, amount):
-                raise self.BrokerError("You do not have enough %s resources to put on sale." % resource)
+                raise self.BrokerError(
+                    "You do not have enough %s resources to put on sale." %
+                    resource)
         else:
             from world.dominion.models import CraftingMaterialType
             try:
-                material_type = CraftingMaterialType.objects.get(name__iexact=self.lhs)
+                material_type = CraftingMaterialType.objects.get(
+                    name__iexact=self.lhs)
             except CraftingMaterialType.DoesNotExist:
-                raise self.BrokerError("Could not find a material by the name '%s'." % self.lhs)
+                raise self.BrokerError(
+                    "Could not find a material by the name '%s'." %
+                    self.lhs)
             if "nosell" in (material_type.acquisition_modifiers or ""):
-                raise self.BrokerError("You can't put contraband on the broker! Seriously, how are you still alive?")
+                raise self.BrokerError(
+                    "You can't put contraband on the broker! Seriously, how are you still alive?")
             if not self.caller.player_ob.pay_materials(material_type, amount):
-                raise self.BrokerError("You don't have enough %s to put on sale." % material_type)
+                raise self.BrokerError(
+                    "You don't have enough %s to put on sale." %
+                    material_type)
         dompc = self.caller.player_ob.Dominion
 
         sale, created = dompc.brokered_sales.get_or_create(price=price, sale_type=sale_type,
@@ -544,20 +641,24 @@ class CmdBroker(ArxCommand):
         if amount == 0:
             created = None
         if created:
-            self.msg("Created a new sale of %s %s for %s silver each and %s total." %
-                     (amount, sale.material_name, price, sale.amount*price))
+            self.msg(
+                "Created a new sale of %s %s for %s silver each and %s total." %
+                (amount, sale.material_name, price, sale.amount * price))
         else:
             if amount > 0:
-                self.msg("Added %s to the existing sale of %s for %s silver each and %s total." %
-                         (original, sale.material_name, price, sale.amount*price))
+                self.msg(
+                    "Added %s to the existing sale of %s for %s silver each and %s total." %
+                    (original, sale.material_name, price, sale.amount * price))
 
     def check_for_buyers(self, sale):
         dompc = self.caller.dompc
-        buy_orders = BrokeredSale.objects.filter(broker_type=BrokeredSale.PURCHASE, price__gte=sale.price,
-                                                 sale_type=sale.sale_type,
-                                                 crafting_material_type=sale.crafting_material_type,
-                                                 amount__gt=0
-                                                 ).exclude(owner=dompc).order_by('-price')
+        buy_orders = BrokeredSale.objects.filter(
+            broker_type=BrokeredSale.PURCHASE,
+            price__gte=sale.price,
+            sale_type=sale.sale_type,
+            crafting_material_type=sale.crafting_material_type,
+            amount__gt=0).exclude(
+            owner=dompc).order_by('-price')
         amount = sale.amount
         for order in buy_orders:
             if amount > 0:
@@ -569,8 +670,9 @@ class CmdBroker(ArxCommand):
                         buyamount = amount
                     order.make_purchase(dompc, buyamount)
                     amount -= buyamount
-                    self.msg("You have sold %s %s to %s for %s silver." %
-                             (buyamount, order.material_name, buyer, order.price * buyamount))
+                    self.msg(
+                        "You have sold %s %s to %s for %s silver." %
+                        (buyamount, order.material_name, buyer, order.price * buyamount))
         sale.amount = amount
         if amount == 0:
             sale.delete()
@@ -583,14 +685,18 @@ class CmdBroker(ArxCommand):
         try:
             return BrokeredSale.objects.get(id=args)
         except (BrokeredSale.DoesNotExist, ValueError, TypeError):
-            raise self.BrokerError("Could not find a sale on the broker by the ID %s." % args)
+            raise self.BrokerError(
+                "Could not find a sale on the broker by the ID %s." %
+                args)
 
     def cancel_sale(self):
         """Cancels a sale"""
         sale = self.find_brokered_sale_by_id(self.lhs)
         display = sale.get_broker_type_display().lower()
         if sale.owner != self.caller.player_ob.Dominion:
-            raise self.BrokerError("You can only cancel your own %ss." % display)
+            raise self.BrokerError(
+                "You can only cancel your own %ss." %
+                display)
         sale.cancel()
         self.msg("You have cancelled the %s." % (display))
 
@@ -598,13 +704,17 @@ class CmdBroker(ArxCommand):
         """Changes the price of a sale"""
         sale = self.find_brokered_sale_by_id(self.lhs)
         if sale.owner != self.caller.player_ob.Dominion:
-            raise self.BrokerError("You can only change the price of your own sales.")
+            raise self.BrokerError(
+                "You can only change the price of your own sales.")
         price = self.get_amount(self.rhs, "price")
         if price == sale.price:
-            raise self.BrokerError("The new price must be different from the current price.")
+            raise self.BrokerError(
+                "The new price must be different from the current price.")
         sale.change_price(price)
         if not sale.pk:
-            self.msg("You have changed the price to %s, merging with an existing sale." % price)
+            self.msg(
+                "You have changed the price to %s, merging with an existing sale." %
+                price)
             return
         amount_remaining = sale.amount
         if sale.broker_type == BrokeredSale.SALE:
