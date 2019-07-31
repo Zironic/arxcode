@@ -33,8 +33,7 @@ class BrokeredSale(SharedMemoryModel):
          "Military Resources"),
         (CRAFTING_MATERIALS,
          "Crafting Materials"))
-    RESOURCE_TYPES = ((ECONOMIC, "economic"),
-                      (SOCIAL, "social"), (MILITARY, "military"))
+    RESOURCE_TYPES = ((ECONOMIC, "economic"), (SOCIAL, "social"), (MILITARY, "military"))
     BROKER_TYPES = ((PURCHASE, "Purchase"), (SALE, "Sale"))
     owner = models.ForeignKey(
         "dominion.PlayerOrNpc",
