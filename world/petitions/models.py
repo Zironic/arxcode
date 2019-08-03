@@ -209,9 +209,8 @@ class PurchasedAmount(SharedMemoryModel):
 
 
 class PetitionSettings(SharedMemoryModel):
-    owner = models.ForeignKey(
-        "dominion.PlayerOrNpc",
-        related_name="petition_settings")
+
+    owner = models.ForeignKey("dominion.PlayerOrNpc", related_name="petition_settings")
     inform = models.BooleanField(default=True)
     ignore_general = models.BooleanField(default=False)
     ignored_organizations = models.ManyToManyField(Organization)
@@ -333,17 +332,14 @@ class Petition(SharedMemoryModel):
         self.posts.create(in_character=in_character, dompc=dompc, text=text)
         part = self.petitionparticipation_set.get(dompc=dompc)
         part.subscribed = True
-        for participant in self.petitionparticipation_set.filter(
-                unread_posts=False).exclude(dompc=dompc):
+        for participant in self.petitionparticipation_set.filter(unread_posts=False).exclude(dompc=dompc):
             participant.unread_posts = True
             participant.save()
             if participant.subscribed:
-                participant.player.msg(
-                    "{wA new message has been posted to petition %s.{n" %
-                    self.id)
-                participant.player.inform(
-                    "{wA new message has been posted to petition %s:{n|/|/%s" %
-                    (self.id, text), category="Petition", append=True)
+                participant.player.msg("{wA new message has been posted to petition %s.{n" % self.id)
+                participant.player.inform("{wA new message has been posted to petition %s:{n|/|/%s" %
+                                          (self.id, text), category="Petition", append=True)
+
 
     def mark_posts_read(self, dompc):
         """If dompc is a participant, mark their posts read"""
